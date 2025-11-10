@@ -5,13 +5,13 @@ A minimal CLI-backed job queue system with persistent storage (SQLite),
 workers, exponential backoff, DLQ support, and basic config management.
 
 Usage examples:
-  ./queuectl.py enqueue '{"id":"job1","command":"echo hello","max_retries":3}'
-  ./queuectl.py worker start --count 2
-  ./queuectl.py status
-  ./queuectl.py list --state pending
-  ./queuectl.py dlq list
-  ./queuectl.py dlq retry job1
-  ./queuectl.py config set backoff_base 2
+  python queuectl.py enqueue '{"id":"job1","command":"echo hello","max_retries":3}'
+  python queuectl.py worker start --count 2
+  python queuectl.py status
+  python queuectl.py list --state pending
+  python queuectl.py dlq list
+  python queuectl.py dlq retry job1
+  python queuectl.py config set backoff_base 2
 """
 
 import os
@@ -23,6 +23,7 @@ import subprocess
 import signal
 import click
 import datetime
+import platform
 from pathlib import Path
 from typing import Optional
 
@@ -130,9 +131,7 @@ def enqueue(job_json):
 
 # ---------- Worker management ----------
 def spawn_worker_process():
-    """
-    Launch a new background Python process to run a single worker.
-    """
+    """Launch a new background Python process to run a single worker."""
     cmd = [sys.executable, os.path.realpath(__file__), "worker", "run"]
     p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return p.pid
@@ -163,28 +162,40 @@ def worker_stop():
     if not PIDS_PATH.exists():
         click.echo("No worker PIDs found.")
         return
-    alive = []
+
     with open(PIDS_PATH, "r") as f:
         lines = [l.strip() for l in f if l.strip()]
+
+    if not lines:
+        click.echo("No worker PIDs found.")
+        return
+
     for ln in lines:
         try:
             pid = int(ln)
-            os.kill(pid, signal.SIGTERM)
-            click.echo(f"Signalled pid {pid} for termination.")
+            if platform.system() == "Windows":
+                # Windows-safe termination
+                os.system(f"taskkill /F /PID {pid} >nul 2>&1")
+                click.echo(f"Stopped worker pid={pid}")
+            else:
+                # Linux/macOS path
+                os.kill(pid, signal.SIGTERM)
+                click.echo(f"Signalled pid {pid} for termination.")
         except ProcessLookupError:
             click.echo(f"pid {ln} not running.")
-        except Exception as e:
-            click.echo(f"Failed to signal pid {ln}: {e}")
-    # remove pid file
+        except Exception:
+            # Ignore stale PIDs silently
+            pass
+
+    # Remove PID file
     try:
         PIDS_PATH.unlink()
-    except:
+    except Exception:
         pass
 
 @worker.command("run")
 def worker_run():
     """Internal: run a single worker loop in foreground (intended to be started by worker start)"""
-    # graceful shutdown
     stop = False
     def _sigterm(signum, frame):
         nonlocal stop
@@ -193,12 +204,10 @@ def worker_run():
     signal.signal(signal.SIGTERM, _sigterm)
     signal.signal(signal.SIGINT, _sigterm)
 
-    click.echo("Worker started (foreground). Press Ctrl-C to stop.")
     conn = get_conn()
     cur = conn.cursor()
     while not stop:
         try:
-            # Claim a pending job whose next_run <= now by performing an atomic UPDATE
             ts_now = now_ts()
             cur.execute("""
                 UPDATE jobs
@@ -210,10 +219,8 @@ def worker_run():
                 )
             """, (now_iso(), ts_now, ts_now))
             if cur.rowcount == 0:
-                # nothing to process; sleep briefly
                 time.sleep(0.8)
                 continue
-            # fetch the job we just took
             cur.execute("SELECT * FROM jobs WHERE state='processing' ORDER BY updated_at DESC LIMIT 1")
             job = cur.fetchone()
             if not job:
@@ -223,11 +230,9 @@ def worker_run():
             attempts = job["attempts"]
             max_retries = job["max_retries"]
             click.echo(f"[{job_id}] Running attempt {attempts}/{max_retries}: {command}")
-            # Execute the command using shell
             proc = subprocess.Popen(command, shell=True)
             while proc.poll() is None:
                 if stop:
-                    # wait for current process to finish before quitting
                     click.echo(f"[{job_id}] waiting for running command to finish for graceful shutdown...")
                     proc.wait()
                     break
@@ -238,13 +243,10 @@ def worker_run():
                 cur.execute("UPDATE jobs SET state='completed', updated_at=? WHERE id=?", (now_iso(), job_id))
                 click.echo(f"[{job_id}] Completed successfully.")
             else:
-                # determine backoff and schedule next run or move to dead
                 if attempts > max_retries:
-                    # move to dead
                     cur.execute("UPDATE jobs SET state='dead', updated_at=? WHERE id=?", (now_iso(), job_id))
                     click.echo(f"[{job_id}] Moved to DLQ (exhausted retries).")
                 else:
-                    # exponential backoff: delay = base ** attempts
                     base = int(config_get("backoff_base", str(DEFAULT_BACKOFF_BASE)))
                     delay = base ** attempts
                     next_run_ts = now_ts() + delay
@@ -252,7 +254,6 @@ def worker_run():
                     click.echo(f"[{job_id}] Failed (exit {exit_code}). Scheduled retry in {delay}s (attempt {attempts}/{max_retries}).")
             conn.commit()
         except sqlite3.OperationalError as e:
-            click.echo("DB busy, retrying... " + str(e))
             time.sleep(0.5)
         except Exception as e:
             click.echo("Worker error: " + str(e))
@@ -272,7 +273,6 @@ def status():
     counts = {r["state"]: r["cnt"] for r in rows}
     for s in ["pending", "processing", "completed", "failed", "dead"]:
         click.echo(f"  {s:10} : {counts.get(s,0)}")
-    # workers
     running = []
     if PIDS_PATH.exists():
         with open(PIDS_PATH, "r") as f:
