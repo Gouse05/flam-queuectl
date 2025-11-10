@@ -88,6 +88,56 @@ python queuectl.py config get backoff_base
 
 ---
 
+## 📦 Job Specification Compliance
+
+Each job in **QueueCTL** fully adheres to the FLAM Backend Assignment specification.  
+Below is the verified structure as implemented in the SQLite database schema:
+
+```json
+{
+  "id": "unique-job-id",
+  "command": "echo 'Hello World'",
+  "state": "pending",
+  "attempts": 0,
+  "max_retries": 3,
+  "created_at": "2025-11-04T10:30:00Z",
+  "updated_at": "2025-11-04T10:30:00Z"
+}
+```
+
+### ✅ Implementation Details
+
+| **Field** | **Type** | **Description** | **Status** |
+|------------|-----------|------------------|-------------|
+| `id` | TEXT (Primary Key) | Unique job identifier | ✅ Implemented |
+| `command` | TEXT | Shell command to execute | ✅ Implemented |
+| `state` | TEXT | Job lifecycle state — `pending`, `processing`, `completed`, `dead` | ✅ Implemented |
+| `attempts` | INTEGER | Retry counter, increments after each failure | ✅ Implemented |
+| `max_retries` | INTEGER | Maximum retry attempts allowed | ✅ Implemented |
+| `created_at` | TEXT (ISO UTC) | Timestamp when job was created | ✅ Implemented |
+| `updated_at` | TEXT (ISO UTC) | Timestamp of last update | ✅ Implemented |
+
+### 🧩 Additional Fields (Enhancements)
+
+| **Field** | **Purpose** |
+|------------|-------------|
+| `next_run` | Enables **delayed/scheduled jobs** |
+| `last_exit_code` | Tracks process exit code for DLQ and logs |
+| `priority` | Implements **priority-based scheduling** |
+
+### 🧠 Auto-Populated Logic
+
+- When a job is enqueued, the system automatically sets:
+  - `state` = `'pending'`
+  - `attempts` = `0`
+  - `max_retries` = default `3`
+  - `created_at` = current UTC time
+  - `updated_at` = current UTC time
+
+This ensures every job follows a consistent lifecycle from **pending → processing → completed/dead**, with persistence and retries handled automatically.
+
+---
+
 ## 🌟 Bonus Features (Implemented)
 
 | Feature | Description | Status |
@@ -230,3 +280,15 @@ Example:
 
 > Implemented QueueCTL in Python with SQLite persistence, exponential backoff retries, multi-worker concurrency, and bonus features including timeout, scheduling, logging, and metrics.  
 > Designed and tested for production reliability, clarity, and clean CLI experience.
+
+---
+
+### 🧩 Git Commands to Commit Update
+
+```bash
+git pull origin main
+notepad README.md   # (Paste this full updated README)
+git add README.md
+git commit -m "Final updated README with Job Specification Compliance"
+git push origin main
+```
