@@ -10,37 +10,53 @@ A CLI-based background job queue system built in \*\*Python\*\* that manages bac
 
 
 
+\## ⚙️ Tech Stack
+
+\- \*\*Language:\*\* Python 3.10  
+
+\- \*\*Libraries:\*\* Click (CLI), SQLite3 (standard library)  
+
+\- \*\*Tested On:\*\* Windows 10/11  
+
+
+
+---
+
+
+
+\## 🎯 Objective
+
+Build a minimal production-grade \*\*background job queue system\*\* that supports:
+
+\- Enqueuing and managing background jobs  
+
+\- Running multiple worker processes  
+
+\- Retrying failed jobs automatically with exponential backoff  
+
+\- Maintaining a Dead Letter Queue (DLQ)  
+
+\- Persistent job storage across restarts  
+
+\- All features accessible via CLI  
+
+
+
+---
+
+
+
 \## ⚙️ Setup Instructions
-
-
-
-\### 1. Clone or extract the repository
 
 ```bash
 
 cd flam-queuectl
-
-```
-
-
-
-\### 2. Create virtual environment and install dependencies
-
-```bash
 
 python -m venv venv
 
 venv\\Scripts\\activate
 
 pip install click
-
-```
-
-
-
-\### 3. Check status (DB initializes automatically)
-
-```bash
 
 python queuectl.py status
 
@@ -72,7 +88,7 @@ python queuectl.py enqueue "{\\"id\\":\\"job\_fail\\",\\"command\\":\\"nonexiste
 
 ```bash
 
-python queuectl.py worker start --count 1
+python queuectl.py worker start --count 2
 
 ```
 
@@ -90,7 +106,7 @@ python queuectl.py list
 
 
 
-\### Dead Letter Queue (DLQ)
+\### Manage Dead Letter Queue (DLQ)
 
 ```bash
 
@@ -112,7 +128,7 @@ python queuectl.py worker stop
 
 
 
-\### Config Example
+\### Manage Config
 
 ```bash
 
@@ -132,15 +148,15 @@ python queuectl.py config get backoff\_base
 
 \- \*\*Storage:\*\* SQLite database (`~/.queuectl/queue.db`)
 
-\- \*\*Worker Management:\*\* Workers launched as subprocesses with PID tracking
+\- \*\*Workers:\*\* Spawned as subprocesses; each executes one job at a time  
 
-\- \*\*Retry Mechanism:\*\* Exponential backoff → delay = base ^ attempts
+\- \*\*Retry System:\*\* Exponential backoff (`delay = base ^ attempts`)  
 
-\- \*\*DLQ Handling:\*\* Jobs moved to `dead` after `max\_retries`
+\- \*\*DLQ:\*\* Jobs moved to `dead` after exceeding `max\_retries`  
 
-\- \*\*Persistence:\*\* Jobs survive restarts
+\- \*\*Persistence:\*\* Job data and config survive restarts  
 
-\- \*\*Graceful Shutdown:\*\* Workers finish current job before stopping
+\- \*\*Graceful Shutdown:\*\* Workers finish current jobs before stopping  
 
 
 
@@ -148,7 +164,65 @@ python queuectl.py config get backoff\_base
 
 
 
-\## 🧠 Test Scenarios
+\## 🧠 Testing and Automation
+
+
+
+\### 🔹 Automated Test Script (`tests.py`)
+
+Runs core functional tests automatically:
+
+```bash
+
+python tests.py
+
+```
+
+\- Enqueues success and failure jobs  
+
+\- Starts worker  
+
+\- Waits for retries and DLQ creation  
+
+\- Retries DLQ jobs  
+
+\- Verifies persistence  
+
+
+
+\### 🔹 Demo Batch File (`demo.bat`)
+
+Automated CLI demo script:
+
+```bash
+
+demo.bat
+
+```
+
+\- Enqueues jobs  
+
+\- Starts worker  
+
+\- Waits for execution  
+
+\- Displays DLQ status  
+
+\- Stops worker gracefully  
+
+
+
+\### 🔹 Design Document (`design.md`)
+
+Summarizes QueueCTL architecture, concurrency model, retry logic, and trade-offs.
+
+
+
+---
+
+
+
+\## 🧪 Test Scenarios
 
 | Test | Expected Outcome |
 
@@ -156,13 +230,15 @@ python queuectl.py config get backoff\_base
 
 | Successful Job | Moves to `completed` |
 
-| Failed Job | Retries, then moves to `dead` |
+| Failed Job | Retries with backoff, then moves to `dead` |
 
 | DLQ Retry | Moves back to `pending` |
 
 | Restart Workers | Pending jobs resume processing |
 
-| Multiple Workers | Parallel, no duplicate execution |
+| Multiple Workers | Parallel, non-overlapping |
+
+| Persistence | Jobs survive restarts |
 
 
 
@@ -172,7 +248,7 @@ python queuectl.py config get backoff\_base
 
 \## 📹 Demo Video
 
-\*\*Google Drive Link:\*\* \*(upload your recording and paste link here)\*  
+\*\*Google Drive Link:\*\* \*(paste your uploaded demo link here)\*  
 
 Example:  
 
@@ -186,11 +262,19 @@ Example:
 
 \## 🏗️ Deliverables
 
-\- `queuectl.py` → main CLI program  
+| File | Description |
 
-\- `README.md` → this file  
+|------|--------------|
 
-\- (Optional) `demo.sh` → script to auto-run demo
+| `queuectl.py` | Main CLI tool |
+
+| `README.md` | Documentation |
+
+| `demo.bat` | Automated demo |
+
+| `tests.py` | Automated functional test |
+
+| `design.md` | Architecture summary |
 
 
 
@@ -200,11 +284,25 @@ Example:
 
 \## 🧠 Developer Notes
 
-\- Built with Python 3.10 using only standard libraries + `click`
+\- Built using \*\*Python 3.10\*\* and standard libraries + Click  
 
-\- Persistent and concurrent system
+\- Fully persistent, retry-safe, and concurrency-protected  
 
-\- Tested on Windows 10
+\- Includes automation, design, and testing deliverables  
+
+\- Verified on Windows environment  
+
+
+
+---
+
+
+
+\## 💬 Additional Comments
+
+> Implemented QueueCTL in Python with SQLite persistence, exponential backoff retries, and multi-worker concurrency.  
+
+> Added automated test script, demo batch file, and design documentation for complete production-grade coverage.
 
 
 
