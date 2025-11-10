@@ -12,8 +12,8 @@ print("=== QueueCTL Automated Test Script ===")
 run("python queuectl.py status")
 
 # 2. Enqueue success and fail jobs
-run('python queuectl.py enqueue "{\"id\":\"auto_success\",\"command\":\"echo auto ok\",\"max_retries\":2}"')
-run('python queuectl.py enqueue "{\"id\":\"auto_fail\",\"command\":\"nonexistent_cmd\",\"max_retries\":2}"')
+run('python queuectl.py enqueue "{\\"id\\":\\"auto_success\\",\\"command\\":\\"echo auto ok\\",\\"max_retries\\":2}"')
+run('python queuectl.py enqueue "{\\"id\\":\\"auto_fail\\",\\"command\\":\\"nonexistent_cmd\\",\\"max_retries\\":2}"')
 
 # 3. Start workers
 run("python queuectl.py worker start --count 1")
